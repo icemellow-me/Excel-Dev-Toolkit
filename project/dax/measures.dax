@@ -1,0 +1,185 @@
+// ═══════════════════════════════════════════════════════════════
+// DAX Measures for Power Pivot / Power BI
+// Student Management System Data Model
+// ═══════════════════════════════════════════════════════════════
+
+// ── TABLE: Students ──
+// Columns: StudentID, FullName, Gender, Class, House, Attendance
+// ── TABLE: Grades ──
+// Columns: StudentID(FK), English, Math, Science, ICT, Social, Total, Average, Grade
+
+// ─────────────────────────────────────────────────────────────
+// BASIC MEASURES
+// ─────────────────────────────────────────────────────────────
+
+Total Students := COUNTROWS('Students')
+
+Total Scores := SUM('Grades'[Total])
+
+Average Score := AVERAGE('Grades'[Average])
+
+Max Score := MAX('Grades'[Average])
+
+Min Score := MIN('Grades'[Average])
+
+// ─────────────────────────────────────────────────────────────
+// GRADE DISTRIBUTION
+// ─────────────────────────────────────────────────────────────
+
+Count Grade A := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "A")
+Count Grade B := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "B")
+Count Grade C := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "C")
+Count Grade D := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "D")
+Count Grade E := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "E")
+Count Grade F := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] = "F")
+
+// ─────────────────────────────────────────────────────────────
+// PASS RATE
+// ─────────────────────────────────────────────────────────────
+
+Pass Count := CALCULATE(COUNTROWS('Grades'), 'Grades'[Grade] <> "F")
+
+Pass Rate :=
+VAR Pass = [Pass Count]
+VAR Total = [Total Students]
+RETURN DIVIDE(Pass, Total, 0)
+
+Fail Rate := 1 - [Pass Rate]
+
+// ─────────────────────────────────────────────────────────────
+// SUBJECT-WISE AVERAGES
+// ─────────────────────────────────────────────────────────────
+
+English Average := AVERAGE('Grades'[English])
+
+Math Average := AVERAGE('Grades'[Mathematics])
+
+Science Average := AVERAGE('Grades'[Science])
+
+ICT Average := AVERAGE('Grades'[ICT])
+
+Social Average := AVERAGE('Grades'[Social Studies])
+
+Subject Pass Rate :=
+VAR SubjectPasses = CALCULATE(COUNTROWS('Grades'),
+    FILTER('Grades',
+        'Grades'[English] >= 50 &&
+        'Grades'[Mathematics] >= 50 &&
+        'Grades'[Science] >= 50 &&
+        'Grades'[ICT] >= 50 &&
+        'Grades'[Social Studies] >= 50
+    )
+)
+RETURN DIVIDE(SubjectPasses, [Total Students], 0)
+
+// ─────────────────────────────────────────────────────────────
+// GENDER COMPARISON
+// ─────────────────────────────────────────────────────────────
+
+Male Count := CALCULATE(COUNTROWS('Students'), 'Students'[Gender] = "Male")
+
+Female Count := CALCULATE(COUNTROWS('Students'), 'Students'[Gender] = "Female")
+
+Male Average := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[Gender] = "Male")
+
+Female Average := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[Gender] = "Female")
+
+Gender Gap := ABS([Male Average] - [Female Average])
+
+// ─────────────────────────────────────────────────────────────
+// RANKINGS
+// ─────────────────────────────────────────────────────────────
+
+Student Rank := RANKX(ALL('Grades'), CALCULATE(SUM('Grades'[Average])))
+
+Top 3 Students :=
+TOPN(
+    3,
+    SUMMARIZE(
+        'Grades',
+        'Students'[FullName],
+        "Avg", AVERAGE('Grades'[Average])
+    ),
+    [Avg], DESC
+)
+
+Top Student Score := MAXX(ALL('Grades'), 'Grades'[Average])
+
+// ─────────────────────────────────────────────────────────────
+// HOUSE COMPARISON
+// ─────────────────────────────────────────────────────────────
+
+Blue House Avg := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[House] = "Blue")
+Red House Avg := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[House] = "Red")
+Green House Avg := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[House] = "Green")
+Yellow House Avg := CALCULATE(AVERAGE('Grades'[Average]), 'Students'[House] = "Yellow")
+
+Best House :=
+VAR Blue = [Blue House Avg]
+VAR Red = [Red House Avg]
+VAR Green = [Green House Avg]
+VAR Yellow = [Yellow House Avg]
+VAR MaxVal = MAX(MAX(Blue, Red), MAX(Green, Yellow))
+RETURN
+    SWITCH(
+        TRUE(),
+        Blue = MaxVal, "Blue (" & FORMAT(Blue, "0.0") & ")",
+        Red = MaxVal, "Red (" & FORMAT(Red, "0.0") & ")",
+        Green = MaxVal, "Green (" & FORMAT(Green, "0.0") & ")",
+        Yellow = MaxVal, "Yellow (" & FORMAT(Yellow, "0.0") & ")",
+        "N/A"
+    )
+
+// ─────────────────────────────────────────────────────────────
+// ATTENDANCE ANALYTICS
+// ─────────────────────────────────────────────────────────────
+
+Average Attendance := AVERAGE('Students'[Attendance])
+
+Low Attendance Count := CALCULATE(COUNTROWS('Students'), 'Students'[Attendance] < 90)
+
+High Attendance Count := CALCULATE(COUNTROWS('Students'), 'Students'[Attendance] >= 95)
+
+Attendance Rate := DIVIDE(SUM('Students'[Attendance]), COUNTROWS('Students') * 100, 0)
+
+// ─────────────────────────────────────────────────────────────
+// TIME INTELLIGENCE (if AdmissionDate exists)
+// ─────────────────────────────────────────────────────────────
+
+Students This Year := CALCULATE(COUNTROWS('Students'),
+    YEAR('Students'[AdmissionDate]) = YEAR(TODAY())
+)
+
+Students Last Year := CALCULATE(COUNTROWS('Students'),
+    YEAR('Students'[AdmissionDate]) = YEAR(TODAY()) - 1
+)
+
+Growth Rate := DIVIDE([Students This Year] - [Students Last Year], [Students Last Year], 0)
+
+// ─────────────────────────────────────────────────────────────
+// CALCULATED COLUMN: Performance Category
+// ─────────────────────────────────────────────────────────────
+// Add this as a Calculated Column in the Grades table:
+
+Performance Category :=
+VAR Avg = 'Grades'[Average]
+RETURN
+    SWITCH(
+        TRUE(),
+        Avg >= 80, "High Distinction",
+        Avg >= 70, "Distinction",
+        Avg >= 60, "Credit",
+        Avg >= 50, "Pass",
+        "Needs Improvement"
+    )
+
+// ─────────────────────────────────────────────────────────────
+// KPI: Overall School Performance Index
+// ─────────────────────────────────────────────────────────────
+
+School Performance Index :=
+VAR AvgScore = [Average Score]
+VAR PassR = [Pass Rate]
+VAR Attend = [Average Attendance]
+RETURN
+    ROUND(AvgScore * 0.4 + PassR * 100 * 0.3 + Attend * 0.3, 2)
